@@ -1,0 +1,172 @@
+
+MySQL 서버의 시스템 변수는 MySQL 서버가 기동 중인 상태에서 변경이 가능한지에 따라 동적 변수와 정적 변수로
+구분된다.
+
+
+mysql> show global variables like '%max_connection%';
++-----------------+-------+
+| Variable_name   | Value |
++-----------------+-------+
+| max_connections | 151   |
++-----------------+-------+
+1 row in set, 1 warning (0.02 sec)
+
+mysql> set global max_connections = 500;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> show global variables like '%max_connection%';
++-----------------+-------+
+| Variable_name   | Value |
++-----------------+-------+
+| max_connections | 500   |
++-----------------+-------+
+1 row in set, 1 warning (0.00 sec)
+
+
+set 을 통해서 변경되는 시스템 변수값은 my.ini 파일에 반영되는 것은 아니기때문에 현재 기동 중인 MySQL의 인스
+턴스에서만 유효하다. MySQL 서버가 재시작하면 다시 설정 파일이 초기화 되므로 영구 적용할려면 my.ini 파일을
+수정해야한다.
+MySQL 8.0 버전부터 SET PERSIST 명령을 이용하면 시스템 변수를 변경함과 동시에 자동으로 설정파일로도 기록된다.
+
+show, set, global 키워드를 사용하면 글로벌 시스템 변수의 목록과 내용을 읽고 변경할 수 있으며, global 키
+워드를 빼면 자동으로 세션 변수를 조회하고 변경한다.
+
+일반적으로 글로벌 시스템 변수는 MySQL 서버의 기동 중에는 변경할 수 없는 것이 많지만 실시간으로 변경할 수 있는
+것도 있다. 
+
+
+mysql> show global variables like 'join_buffer_size';
++------------------+--------+
+| Variable_name    | Value  |
++------------------+--------+
+| join_buffer_size | 262144 |
++------------------+--------+
+1 row in set, 1 warning (0.00 sec)
+
+mysql> show variables like 'join_buffer_size';
++------------------+--------+
+| Variable_name    | Value  |
++------------------+--------+
+| join_buffer_size | 262144 |
++------------------+--------+
+1 row in set, 1 warning (0.00 sec)
+
+mysql> set global join_buffer_size = 524288;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql>  show global variables like 'join_buffer_size';
++------------------+--------+
+| Variable_name    | Value  |
++------------------+--------+
+| join_buffer_size | 524288 |
++------------------+--------+
+1 row in set, 1 warning (0.00 sec)
+
+mysql>  show variables like 'join_buffer_size';
++------------------+--------+
+| Variable_name    | Value  |
++------------------+--------+
+| join_buffer_size | 262144 |
++------------------+--------+
+1 row in set, 1 warning (0.00 sec)
+
+위 항목의 첫번째 명령어는 글로벌 변수 두번째 명령은 세션 변수
+join_buffer_size의 글로벌 변수값은 524288으로 변경되었지만, 현재 커넥션의 세션 변수는 예전의 값인 262144
+를 그대로 유지하고 있음을 확인
+
+MySQL의 시스템 변수 가운데 동적인 변수만 이렇게 SET 명령을 이요애 변경하는 것이 가능하다.
+
+SET 명령으로 새로운 값을 설정할 때는 설정 파일에서처럼 MB나 GB 단위를 표시할수 없지만 2*1024*1024 같은
+수식은 사용할 수 있따.
+
+동적 변수는 SET GLOBAL 명령으로 변경하면 즉시 MySQL 서버에 반영된다.
+
+set global max_connections = 5000;
+
+mysql> show global variables like 'max_connections';
++-----------------+-------+
+| Variable_name   | Value |
++-----------------+-------+
+| max_connections | 5000  |
++-----------------+-------+
+1 row in set, 1 warning (0.00 sec)
+
+mysql>  show variables like 'max_connections';
++-----------------+-------+
+| Variable_name   | Value |
++-----------------+-------+
+| max_connections | 5000  |
++-----------------+-------+
+1 row in set, 1 warning (0.00 sec)
+
+mysqld-auto.cnf에 변경 내용을 추가로 기록해 둔다.
+
+MySQL 서버가 다시 시작될때 기본 설정 파일에서 뿐만 아니라 자동 생성된 mysqld-auto.cnf 파일을 같이
+참조해서 시스템 변수로 적용한다. 즉, SET PERSIS 명령을 사용하면 MySQL 서버 설정 파일(my.cnf) 에 변경
+내용을 수동으로 기록하지 않아도 변경된다.
+
+SET PERSIS 항목은 5.7 버전에서는 사용이 안된다.
+
+SET PERSIST_ONLY 명령은 정적인 변수의 값을 영구적으로 변경하고자 할 때도 사용한다.
+
+mysql> SET PERSIST innodb_doublewrite=ON;
+ERROR 1238 ...
+mysql> SET PERSIST_ONLY innodb_doublewrite=ON;
+Query OK, ...
+
+json 포맷의 mysqld-auto.cnf 파일이 생성된다.
+
+{
+    "Version" : 1,
+    "mysql_server" : {
+
+        "max_connections": {
+            "Value" : "5000" ,
+            "Metadata" : { 
+                "Timestamp": 1603531423345,
+                "User": "matt.lee",
+                "Host": "localhost"
+            }
+
+        },
+        ...
+    }
+}
+
+
+SET PERSIST나 SET_PERSIST_ONLY 명령으로 추가된 시스템 변수의 내용을 삭제해야 할 때도 있다.
+
+mysqld-auto.cnf 파일의 내용을 삭제해야 하는 경우에는 다음과 같이 RESET PERSIT 명령을 사용하는 것이 안전하다.
+
+
+# 특정 시스템 변수만 삭제
+mysql> RESET PERSIT max_connections;
+mysql> RESET PERSIT IF EXISTS max_connections;
+
+# mysqld-auto.cnf 파일의 모든 시스템 변수를 삭제
+mysql> RESET PERSIT;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

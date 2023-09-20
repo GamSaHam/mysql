@@ -1,0 +1,165 @@
+MySQL 서버는 머리 역할을 담당하는 엔진과, 손발 역할을 담당하는 스토리지 엔진으로 구분할 수 있다.
+
+스토리지 엔진은 핸들러 API를 만족하면 MySQL 서버에 추가해서 사용할 수 있다.
+
+MySQL 서버에서 기본으로 제공되는 InnoDB 스토리지 엔진, 그리고 MyISAM 스토리지 엔진을 구분해서 살펴보겠다.
+
+4.1 MySQL 엔진 아키텍처
+
+
+프로그래밍 API(각종 언어들) 
+
+MySQL 서버
+-> 커넥션 핸들러, (SQL 인터페이스, SQL 파서, SQL 옵티마이저, 캐시&버퍼)[MYSQL 엔진]
+-> 스토리지 엔진 API(InnoDB, MyISAM, Memory)[스토리지 엔진]
+
+데이터 파일, 로그파일(디스크) [운영체제 하드웨어]
+
+4.1.1 MySQL 엔진
+클라이언트로부터의 접속 및 쿼리 요청을 처리하는 커넥션 핸들러와 SQL 파서 및 전처리기, 쿼리의 최적화된 실행을 위한 옵티마이저
+가 중심을 이룬다.
+
+MySQL은 ANSI SQL 문법을 지원하기 때문에 표준 문법에 따라 작성된 쿼리는 타 DBMS와 호환되어 실행될 수 있다.
+
+4.1.1.2 스토리지 엔진
+MySQL 엔진은 요청된 SQL 문장을 분석하거나 최적화등 DBMS의 두뇌 해당하는 처리를 수행하고,
+실제 데이터를 디스크 스토리지에 저장하거나 디스크 스토리지로부터 데이터를 읽어 오는 부분은 스토리지 엔진이 전담한다.
+
+MySQL 서버에서 MySQL 엔진은 하나지만 스토리지 엔진은 여러개 동시에 사용할 수 있다.
+
+mysql> create table test_table (fd1 INT, fd2 INT) ENGINE=INNODB;
+
+MySQL 엔진의 쿼리 실행기에서 데이터를 쓰거나 읽어야 할 때는 각 스토리지 엔진에 쓰기 또는 읽기를 요청하는데
+이를 헨들러(Handler) 요청이라 하고, 여기서 사용되는 API를 핸들러 API라고 한다.
+
+
+mysql> show global status like 'Handler%';
++----------------------------+--------+
+| Variable_name              | Value  |
++----------------------------+--------+
+| Handler_commit             | 15     |
+| Handler_delete             | 0      |
+| Handler_discover           | 0      |
+| Handler_external_lock      | 497    |
+| Handler_mrr_init           | 0      |
+| Handler_prepare            | 0      |
+| Handler_read_first         | 69     |
+| Handler_read_key           | 3317   |
+| Handler_read_last          | 0      |
+| Handler_read_next          | 300596 |
+| Handler_read_prev          | 0      |
+| Handler_read_rnd           | 3306   |
+| Handler_read_rnd_next      | 316331 |
+| Handler_rollback           | 0      |
+| Handler_savepoint          | 0      |
+| Handler_savepoint_rollback | 0      |
+| Handler_update             | 2      |
+| Handler_write              | 6034   |
++----------------------------+--------+
+18 rows in set (0.00 sec)
+
+4.1.2 MySQL 스레딩 구조
+
+(클라이언트접근 ->)포그라운드 스레드(커넥션 연결), 포그라운드 스레드(스레드 캐시), 백그라운드 스레드
+
+캐시 & 버퍼, 로그 버퍼
+
+데이터 파일, 로그 파일(디스크)
+
+MySQL 서버는 프로세스 기반이 아니라 스레드 기반으로 작동하며, 포그라운드(Foreground), 백그라운드(Background)
+스레드로 구분할 수 있다. MySQL 서버에서 실행중인 스레드 목록은 다음과 같이 확인할 수 있다.
+
+
+mysql> select thread_id, name, type, processlist_user, processlist_host from performance_schema.threads order by type, thread_id;
++-----------+----------------------------------------+------------+------------------+------------------+
+| thread_id | name                                   | type       | processlist_user | processlist_host |
++-----------+----------------------------------------+------------+------------------+------------------+
+|         1 | thread/sql/main                        | BACKGROUND | NULL             | NULL             |
+|         2 | thread/sql/thread_timer_notifier       | BACKGROUND | NULL             | NULL             |
+|         3 | thread/innodb/io_read_thread           | BACKGROUND | NULL             | NULL             |
+|         4 | thread/innodb/io_write_thread          | BACKGROUND | NULL             | NULL             |
+|         5 | thread/innodb/io_write_thread          | BACKGROUND | NULL             | NULL             |
+|         6 | thread/innodb/page_cleaner_thread      | BACKGROUND | NULL             | NULL             |
+|         7 | thread/innodb/io_read_thread           | BACKGROUND | NULL             | NULL             |
+|         8 | thread/innodb/io_log_thread            | BACKGROUND | NULL             | NULL             |
+|         9 | thread/innodb/io_ibuf_thread           | BACKGROUND | NULL             | NULL             |
+|        10 | thread/innodb/io_read_thread           | BACKGROUND | NULL             | NULL             |
+|        11 | thread/innodb/io_read_thread           | BACKGROUND | NULL             | NULL             |
+|        12 | thread/innodb/io_write_thread          | BACKGROUND | NULL             | NULL             |
+|        13 | thread/innodb/io_write_thread          | BACKGROUND | NULL             | NULL             |
+|        15 | thread/innodb/srv_monitor_thread       | BACKGROUND | NULL             | NULL             |
+|        16 | thread/innodb/srv_master_thread        | BACKGROUND | NULL             | NULL             |
+|        17 | thread/innodb/srv_worker_thread        | BACKGROUND | NULL             | NULL             |
+|        18 | thread/innodb/srv_worker_thread        | BACKGROUND | NULL             | NULL             |
+|        19 | thread/innodb/srv_error_monitor_thread | BACKGROUND | NULL             | NULL             |
+|        20 | thread/innodb/srv_lock_timeout_thread  | BACKGROUND | NULL             | NULL             |
+|        21 | thread/innodb/srv_worker_thread        | BACKGROUND | NULL             | NULL             |
+|        22 | thread/innodb/srv_purge_thread         | BACKGROUND | NULL             | NULL             |
+|        23 | thread/innodb/buf_dump_thread          | BACKGROUND | NULL             | NULL             |
+|        24 | thread/innodb/dict_stats_thread        | BACKGROUND | NULL             | NULL             |
+|        25 | thread/sql/con_sockets                 | BACKGROUND | NULL             | NULL             |
+|        26 | thread/sql/compress_gtid_table         | FOREGROUND | NULL             | NULL             |
+|        36 | thread/sql/one_connection              | FOREGROUND | root             | localhost        |
++-----------+----------------------------------------+------------+------------------+------------------+
+26 rows in set (0.00 sec)
+
+포그라운드 스레드(클라이언트 스레드)
+
+포그라운드 스레드는 최소한 MySQL 서버에 접속된 클라이언트의 수만큼 존재하며, 주로 각 클라이언트 사용자가 요청
+하는 쿼리 문장을 처리한다.
+클라이언트 사용자가 잡업을 마치고 커넥션을 종료하면 해당 커넥션을 담당하던 스레드는 다시 스레드 캐시(Thread cache)
+로 돌아간다. 최대 스레드 개수는 thread_cache_size 시스템 변수로 설정한다.
+
+포그라운드 스레드는 데이터를 MySQL의 데이터 버퍼나 캐시로부터 가져오며, 버퍼나 캐시가 없는 경우 직접
+디스크의 데이터나 인덱스 파일로부터 데이터를 읽어와서 작업을 처리한다. MyISAM 테이블은 디스크 쓰기 
+작업까지 포그라운드 스레드가 처리하지만(MyISAM도 지연된 쓰기가 있지만 일반적인 방식은 아님) InnoDB 테이블은
+데이터 버퍼나 캐시까지만 포그라운드 스레드가 처리하고, 나머지 버퍼로부터 디스크까지 기록하는 작업은 백그라운드
+스레드가 처리한다.
+
+MySQL에서 사용자 스레드와 포그라운드 스레드는 똑같은 의미로 사용된다. 
+
+4.1.2.2 백그라운드 스레드
+InnoDB는 다음과 같이 여러 가지 작업이 백그라운드로 처리된다.
+- 인서트 버퍼(Insert Buffer)를 병합하는 스레드
+- 로그를 디스크로 기록하는 스레드
+- InnoDB 버퍼 풀의 데이터를 디스크에 기록하는 스레드
+- 데이터를 버퍼로 읽어 오는 스레드
+- 잠금이나 데드락을 모니터링하는 스레드
+
+로그 스레드(Log thread) 버퍼의 데이터를 디스크로 내려쓰는 작업을 처리하는 쓰기 스레드(Write thread)일 것이다.
+
+메모리 할당 및 사용 구조
+
+글로벌 메모링 영역(InnoDB 버퍼 풀, MyISAM 키 캐시, 바이너리 로그 버퍼, 리두 로그 버퍼, 테이블 캐시)
+세션(커넥션) 메모리 영역(조인 버퍼, 정렬(Sort) 버퍼, 네트워크 버퍼, 리드 버퍼)
+
+MySQL에서 사용되는 메모리 공간은 글로벌 메모리 영역과 로컬 메모리 영역으로 구분할 수 있다.
+글로벌 메모리 영역의 모든 메모리 공간은 MySQL 서버가 시작되면서 운영체제로부터 할당된다.
+
+운영체제의 종류에 따라 다르겠지만 요청된 메모리 공간을 100%로 할당해줄 수 있고, 그 공간만큼 예약해두고
+필요할 때 조금씩 할당해주는 경우도 있다. 각 운영체제의 메모리 할당 방식은 상당히 복잡하며, MySQL 서버가
+사용하는 정확한 메모리의 양을 측정하는 것도 또한 쉽지 않다. 그냥 단순하게 MySQL의 시스템 변수로 설정해
+둔 만큼 운영체제로부터 메모리를 할당받는다고 생각해도 된다.
+
+4.1.3.1 글로벌 메모리 영역
+일반적으로 클라이언트 스레드의 수와 무관하게 하나의 메모리 공간만 할당된다. 단, 필요에 따라 2개이상의
+메모리 공간을 할당받을 수 있지만 클라이언트의 스레드 수와는 무관하며, 생성된 글로벌 영역이 N개라 하더라도
+스레드에 의해 공유된다. 대표적인 글로벌 메모리 영역은 다음과 같다.
+
+- 테이블 캐시
+- InnoDB 버퍼 풀
+- InnoDB 어댑티브 해시 인덱스
+- InnoDB 리두 로그 버퍼
+
+
+
+
+
+
+
+
+
+
+
+
+

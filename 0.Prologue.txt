@@ -1,0 +1,62 @@
+show global variables like 'max_connections';
+# 151
+set persist max_connections=5000;
+
+mysql> create database employees
+    -> default character set utf8mb4 collate utf8mb4_unicode_ci;
+Query OK, 1 row affected (0.00 sec)
+
+mysql> use employees
+Database changed
+mysql> source employees.sql
+
+기존 버전에서 새로운 메이저 버전으로 업그레이드하는 경우라면 최소 패치 15~20번 이상 릴리스된 버전
+을 선택하는 것이 안정적인 서비스에 도움이 될 것이다.
+즉 MySQL 8.0 버전이라면 MySQL 8.0.15부터 8.0.20 사이의 버전부터 시작하는 것을 권장한다.
+
+bin: MySQL 서버와 클라이언트 프로그램, 그리고 유틸리티를 위한 디렉터리
+include: C/C++ 헤더 파일들이 저장된 디렉터리
+lib: 라이브러리 파일들이 저장된 디렉터리
+share: 다양한 지원 파일들이 저장돼 있으며, 에러 메시지나 샘플 설정 파일(my.ini)이 있는 디렉터리
+
+mysql> show databases;
+
+mysql -h 127.0.0.1 -uroot -p
+
+MySQL 8.0에서 외래키(Foreign Key)의 이름이 64글자로 제한된다.
+
+인덱스 힌트: MySQL 5.x에서 사용하던 인덱스 힌트가 8.0에서 성능 저하를 유발할 수도 있다.
+
+select table_schema, table_name
+from information_schema.TABLES
+
+where table_name in (select left(substr(id, instr(id, '/') + 1), instr(substr(id, instr(id, '/') + 1), '_ibfk_') - 1)
+                     from information_schema.INNODB_SYS_FOREIGN
+                     where length(substr(id, instr(id, '/') + 1)) > 64);
+
+select distinct name, space, space_type
+from information_schema.INNODB_SYS_TABLES
+where name like '%#P#%'
+  and SPACE_TYPE not like '%Single%';
+
+mysqld --verbose --help
+mysql --help
+
+show global variables;
+
+시스템 변수 5가지 속성
+
+Cmd-line: MySQL 서버의 명령행 인자로 설정될 수 있는지 여부를 나타낸다.
+
+Option file: MySQL의 설정 파일인 my.cnf로 제어할 수 있는지 여부를 나타낸다. 
+
+System Var: 시스템 변수인지 아닌지를 나타낸다.
+
+Var Scope: 시스템 변수의 적용 범위를 나타낸다. (Global)을 대상으로 하는지, 아니면 (Session) 만인지
+구분한다. 세션과 글로벌 범위일 경우 Both 가 되기도 한다.
+
+Dynamic: 시스템 변수가 동적인지 정적인지 구분하는 변수이다.
+
+
+
+

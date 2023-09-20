@@ -1,0 +1,135 @@
+보안을 위해 주기적으로 변경을 해야 하지만 서비스를 모두 멈추지 않고서는 비밀번호 변경 하는 것은 불가능했다.
+
+계정의 비밀번호를 2개의 값을 동시에 사용 할 수 있는 기능 추가 했다. MySQL 서버 메뉴얼에서는 이 기능을 '이중 비밀번호
+(Dual Password)'라고 소개한다.
+
+이중 비밀번호는 2개의 비밀번호 중 하나만 일치하면 로그인이 통과되는 것을 의미한다.
+
+MySQL 서버의 이중 비밀번호 기능은 하나의 계정에 대해 2개의 비밀번호를 동시에 설정할 수 있는데, 2개 비밀번호는 
+프라이머리(Primary)와 세컨더리(Secondary)로 구분된다.
+
+mysql> alter user 'user'@'%' identified by
+    -> 'old_password';
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> alter user 'user'@'%' identified by 'new_password' retain current password;
+ERROR 1064 (42000): You have an error in your SQL syntax; 
+check the manual that corresponds to your MySQL server version for the right syntax to use near 
+'retain current password' at line 1
+
+3.4 권한(Privilege)
+MySQL 5.7 버전까지 권한은 표 3.1과 같이 글로벌(Global) 권한과 객체 단위의 권한으로 구분됐다.
+데이터베이스나 테이블 이외의 객체에 적용되는 권한을 글로벌 권한이라고 한다.
+
+정적 권한
+
+구분, 권한, Grant 테이블의 칼럼명, 권한 범위
+글로벌 권한, FILE, File_priv, 파일
+-, CREATE ROLE, Create_role_priv, 서버 관리  
+-, CREATE TABLESPACE, Create_tablespace_priv ,-
+-, CREATE USER, Create_user_priv, -
+-, DROP ROLE, Drop_role_priv, - 
+-, PROCESS, Process_priv, -
+---------------------------------------------
+-, PROXY, See proxies_priv table, 서버 관리
+-, RELOAD, Reload_priv, 서버 관리
+-, REPLICATION CLIENT, Repl_client_priv 서버 관리
+-, REPLICATION SLAVE, Repl_slave_priv 서버 관리
+-, SHOW DATABASES, Show_db_priv, 서버 관리
+-, SHUTDOWN, Shutdown_priv, 서버 관리
+-, SUPER, Super_priv, 서버 관리
+-, USAGE, Synonym for 'no privileges', 서버 관리
+
+구분, 권한, Grant 테이블의 컬럼명, 권한 범위
+객체 권한, EVENT, Event_priv, 데이터 베이스
+-, LOCK TABLES, Lock_tables_priv, -
+-, REFERENCES, References_priv, - & 테이블
+-, CREATE, Create_priv, - & 테이블 & 인덱스
+-, GRANT OPTION, Grant_priv, - & 테이블 & 스토어드 프로그램
+-, Drop, Drop_priv, - & 테이블, 뷰
+-, ALTER ROUTINE, Alter_routine_priv, 스토어드 프로그램
+-, CREATE ROUTINE, Create_routine_priv, 스토어드 프로그램
+-, EXECUTE, Execute_priv, 스토어드 프로그램
+-, ALTER, Alter_priv, 테이블
+-, CREATE TEMPORARY TABLES, Create_tmp_table_priv, 테이블
+-, DELETE, Delete_priv, 테이블
+-, INDEX, Index_priv, 테이블
+-, TRIGGER, Trigger_priv, 테이블
+-, INSERT, Insert_priv, 테이블 & 컬럼
+-, SELECT, Select_priv, 테이블 & 컬럼
+-, UPDATE, Update_priv, 테이블 & 컬럼
+-, CREATE VIEW, Create_view_priv, 뷰
+-, SHOW VIEW, Show_view_priv, 뷰
+객체 & 글로벌, ALL [PRIVILEGES], Synonym for "all privileges", 서버 관리
+
+위 항목이 5.7에서 사용하는 정적 권한이고 8.0부터는 동적 권한이 추가 됐다.
+
+MySQL 5.7 버전까지는 SUPER라는 데이터베이스 관리를 위해 꼭 필요한 권한이었지만, MySQL 8.0부터는 SUPER 권한은
+잘게 쪼개어져 표 3.2의 동적 권한으로 분산됐다.
+
+mysql> grant event on employees.* TO 'user'@'%';
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> grant select, insert, update, delete on employees.* TO 'user'@'%';
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> grant select, insert, update(dept_name) ON employees.departments TO 'user'@'%';
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> show grants;
++---------------------------------------------------------------------+
+| Grants for root@localhost                                           |
++---------------------------------------------------------------------+
+| GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION |
+| GRANT PROXY ON ''@'' TO 'root'@'localhost' WITH GRANT OPTION        |
++---------------------------------------------------------------------+
+2 rows in set (0.00 sec)
+
+구분, 저장소 테이블, 설명
+정적 권한, mysql.user, 계정 정보 & 계정이나 역할에 부여된 글로벌 권한
+
+3.5 역할
+MySQL 8.0 버전부터는 권한을 묶어서 역할(Role)을 사용할 수 있게 됐다.
+
+create role role_emp_read, role_emp_write;
+
+5.7 항목에서는 사용안됨
+
+grant select on employees.* TO role_emp_read;
+grant insert, update, delete on employees.* TO role_emp_write;
+
+select current_role();
+
+mysql> set global activate_all_roles_on_login=ON;
+
+mysql> select user, host, account_locked from mysql.user;
++---------------+-----------+----------------+
+| user          | host      | account_locked |
++---------------+-----------+----------------+
+| root          | localhost | N              |
+| mysql.session | localhost | Y              |
+| mysql.sys     | localhost | Y              |
+| user          | %         | N              |
++---------------+-----------+----------------+
+4 rows in set (0.00 sec)
+
+mysql> create role role_emp_read, role_emp_write;
+ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'role role_emp_read, role_emp_write' at line 1
+
+
+mysql> create role role_emp_local_read@'localhost';
+mysql> create user reader@'127.0.0.1' identified by 'qwerty';
+mysql> grant select on employees.* to role_emp_local_read@'localhost';
+mysql> grant role_emp_local_read@'localhost' to reader@'127.0.0.1';
+
+8.0에서 역할과 계정은 내외부적으로 동일한 객체이다.
+이는 데이터베이스 관리의 직무를 분리할 수 있게 해서 보안을 강화하는 용도로 사용될
+수 있게 하기 위함이다.
+
+create role을 생성을 하면 account_locked 칼럼의 값이 'Y'로 설정돼 있어서 로그인 할 수가
+없다.
+
+mysql.default_roles, 계정별 기본 역할
+mysql.role_edges, 역할 부여된 역할 관계 그래프
+
+

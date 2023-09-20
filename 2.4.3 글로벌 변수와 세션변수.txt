@@ -1,0 +1,37 @@
+
+use employees;
+
+select table_schema, table_name
+from information_schema.TABLES
+
+where table_name in (select left(substr(id, instr(id, '/') + 1), instr(substr(id, instr(id, '/') + 1), '_ibfk_') - 1)
+                     from information_schema.INNODB_SYS_FOREIGN
+                     where length(substr(id, instr(id, '/') + 1)) > 64);
+
+select distinct name, space, space_type
+from information_schema.INNODB_SYS_TABLES
+where name like '%#P#%'
+  and SPACE_TYPE not like '%Single%';
+
+show global variables;
+
+글로벌 범위의 시스템 변수
+MySQL 서버 인스턴스에서 전체적인 영향을 미치는 시스템 변수를 의미,
+주로 MySQL 서버 자체에 관련된 설정일 때가 많다.
+MySQL 서버에서 단 하나만 존재하는 InnoDB 버퍼 풀크기 또는
+MyISAM의 키 캐시 크기등이 가장 대표적인 글로벌 영역의 시스템 변수다.
+
+세션 범위의 시스템 변수는 MySQL 클라이언트가 MySQL 서버에 접속할 때 기본으로 부여하는 옵션의 기본값을 제어
+하는 데 사용된다. MySQL에서 클라이언트가 처음 접속하면 기본적으로 부여하는 기본값을 가지고 있다.
+각 클라이언트에서 쿼리 단위로 자동 커밋을 수행할지 여부를 결정하는 autocommit 변수가 대표적인 예
+
+세션 범위의 시스템 변수 가운데 MySQL 서버의 설정파일(my.cnf 또는 my.ini) 명시해 초기할수 있는 변수는
+대부분 범위가 'Both'라고 명시돼 있다. MySQL 서버가 기억만 하고 있다가 실제 클라이언트와의 커넥션이 생성되는 순간에
+해당 커넥션의 기본값으로 사용되는 값이다. 
+
+
+
+
+
+
+
