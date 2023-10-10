@@ -1,0 +1,67 @@
+RDBMS에서 레코드가 INERT되거나 UPDATE될 떄는 데이터 파일을 변경하는 작업 뿐 아니라 해당 테이블에 포함된 인덱스를 업데이트하는
+작업도 필요하다. 그런데 인덱스를 업데이트하는 작업은 랜덤하게 디스크를 읽는 작업이 필요하므로 테이블에 인덱스가 많다면 이 작업은 상당히
+많은 자원을 소모하게 된다. 그래서 InnoDB는 변경해야 할 인덱스 페이지가 버퍼 풀에 잇으면 바로 업데이트를 수행하지만 그렇지 않고
+디스크로부터 읽어와서 업데이트해야 한다면 이를 즉시 실행하지 않고 임시 공간에 저장해 두고 바로 사용자에게 결과를 반환하는 형태로 성능
+을 향상시키게 되는데, 이때 사용하는 임시 메모리 공간을 체인지 버퍼(Change Buffer) 라고 한다.
+
+사용자에게 결과를 전달하기 전에 반드시 중복 여부를 체크해야 하는 유니크 인덱스는 체인지 버퍼를 사용할 수 없다. 체인지 버퍼에 임시로
+저장된 인덱스 레코드 조각은 이후 백그라운드 스레드에 의해 병합되는데, 이 스레드를 체인지 버퍼 머지 스레드(Merge thread)라고 한다.
+5.5 이전 버전까지는 INSERT 작업에 대해서만 이러한 버퍼링 가능했는데, 5.5 부터 조금식 계선되서 8.0에는 INSERT, DELETE, UPDATE로 인해 
+키를 추가하거나 삭제하는 작업에 대해서도 버퍼링이 될 수 있게 개선됐다. Innodb_change_buffering이라는 시스템 변수가 새로 도입되어 작업의 종류별로
+체인지 버퍼를 활성화할 수 있으며, 체인지 버퍼가 비효율적일 떄는 체인지 버퍼를 사용하지 않게 설정할 수 있게 개선됐다.
+innodb_change_buffering 시스템 변수에 설정할 수 있는 값은 다음과 같다.
+
+-all: 모든 인덱스 관련 작업(insert + deletes + purges)을 버퍼링
+-none: 버퍼링 안함
+-inserts: 인덱스에 새로운 아이템을 추가하는 작업만 버퍼링
+-deletes: 인덱스에서 기존 아이템을 삭제하는 작업(삭제됐다는 마킹 작업)만 버퍼링
+-changes: 인덱스에 추가하고 삭제하는 작업만(inserts + deletes) 버퍼링
+-purges: 인덱스 아이템을 영구적으로 삭제하는 작업만 버퍼링(백그라운드 작업)
+
+체인지 버퍼는 기본적으로 InnoDB 버퍼 풀로 설정된 메모리 공간의 25%까지 사용할 수 있게 설정돼 있으며, 필요하다면 InnoDB 버퍼 풀의
+50%까지 사용하게 설정할 수 있다. 
+체인지 버퍼가 너무 많은 버퍼 풀 공간을 사용하지 못하도록 한다거나 INSERT나 UPDATE 등이 너무 빈번하게 실행되어 체인지 버퍼가 더 많은
+버퍼 풀을 사용할 수 있게 하고자 한다면 innodb_change_buffer_max_size 시스템 변수에 비율을 설정하면 된다.
+
+체인지 버퍼가 사용 중인 메모리 공간의 크기
+mysql> SELECT EVENT_NAME, CURRENT_NUMBER_OF_BYTES_USED FROM performance_schema.memory_summary_global_by_event_name
+    -> WHERE EVENT_NAME = 'memory/innodb/ibuf0ibuf';
++-------------------------+------------------------------+
+| EVENT_NAME              | CURRENT_NUMBER_OF_BYTES_USED |
++-------------------------+------------------------------+
+| memory/innodb/ibuf0ibuf |                            0 |
++-------------------------+------------------------------+
+1 row in set (0.00 sec)
+
+체인지 버퍼 관련 오퍼레이션 처리 횟수
+
+SHOW ENGINE INNODB STATUS \G
+...
+-------------------------------------
+INSERT BUFFER AND ADAPTIVE HASH INDEX
+-------------------------------------
+Ibuf: size 1, free list len 210, seg size 212, 0 merges
+merged operations:
+ insert 0, delete mark 0, delete 0
+discarded operations:
+ insert 0, delete mark 0, delete 0
+Hash table size 2267, node heap has 0 buffer(s)
+Hash table size 2267, node heap has 0 buffer(s)
+Hash table size 2267, node heap has 0 buffer(s)
+Hash table size 2267, node heap has 0 buffer(s)
+Hash table size 2267, node heap has 0 buffer(s)
+Hash table size 2267, node heap has 0 buffer(s)
+Hash table size 2267, node heap has 0 buffer(s)
+Hash table size 2267, node heap has 0 buffer(s)
+0.00 hash searches/s, 0.00 non-hash searches/s
+---
+...
+
+
+
+
+
+
+
+
+

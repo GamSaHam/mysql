@@ -1,0 +1,37 @@
+5.7에서는 InnoDB 스토리지 엔진을 사용하는 경우 Undo 테이블 스페이스가 "ibdata1" 파일로 구현되어 있다.
+
+최대 동시 트랜잭션 수 = (InnoDB 페이지 크기) / 16 * (롤백 세그먼트 개수) * (언두 테이블스페이스 개수)
+
+가장 일반적인 설정인 16KB InnoDB에서 기본 설정 (innodb_undo_tablespaces=2, innodb_rollback_segments=128)을 사용한다고 가정하면
+대락 131072(= 16 * 1024 / 16 * 128 * 2/2)개 정도의 트랜잭션이 동시에 처리 가능해 진다.물론 일반적인 서비스에서 이 정도까지 동시 트랜잭
+션이 필요하진 않겠지만 기본값으로 해서 크게 문제될 건 없으므로 가능하면 기본값을 유지하자. 언두 로그 공간이 남는것은 크게 문제
+되지 않지만 언두 로그 슬롯이 부족한 경우에는 트랜잭션을 시작할 수 없는 심각한 문제가 발생한다.
+
+SELECT TABLESPACE_NAME, FILE_NAME FROM INFORMATION_SCHEMA.FILES WHERE FILE_TYPE LIKE 'UNDO LOG';
+
+8.0 버전 부터는 CREATE UNDO TABLESPACE나 DROP TABLESPACE 같은 명령으로 새로운 언두 테이블스페이스를 동적으로 추가하고 삭제할 수 있다.
+
+5.6 이전 버전에서는 언두 로그는 모두 시스템 테이블스페이스(ibdata.ibd)에 저장됐다. 5.6에서는 innodb_indo_tablespaces 시스템 변수가
+도입되었다. innodb_indo_tablespaces를 0으로 설정하면 ibdata.ibd에 저장됐다.
+
+자동 모드: 트랜잭션이 데이터를 변경하면 이전 버전의 데이터를 언두 로그로 기록하는데, 트랜잭션이 커밋되면 더이상 언두 로그에 복사된 이전
+값은 불필요해진다. (Purge Thread)는 주기적으로 깨어나서 언두 로그 공간에서 불필요해진 언두 로그를 삭제하는 작업을 실행하는데, 이 작업을
+언두 퍼지라고 한다. innodb_undo_log_truncate ON으로 설정되면, 퍼지 스레드는 주기적으로 언두 로그 파일에서 사용되지 않는 공간을 잘라내고
+운영체제로 반납하게 된다. 언두 로그 파일을 잘라내는 작업을 더 빈번하게 또는 덜 빈번하게 실행되게 하려면 innodb_purge_rseg_truncate_fre
+quency 시스템 변수 값을 조정하면 된다.
+
+수동 모드: innodb_undo_log_truncate 시스템 변수가 OFF로 설정되어 언두 로그 파이을의 잘라내기가 자동으로 실행 되지 않게 한다.
+
+ALTER UNDO TABLESPACE table_name SET INACTIVE;
+ALTER UNDO TABLESPACE table_name SET ACTIVE;
+5.7에서는 동작안함
+
+
+
+
+
+
+
+
+
+
