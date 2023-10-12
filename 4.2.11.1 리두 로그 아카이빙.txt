@@ -75,7 +75,7 @@ mysql> ALTER TABLE employees ADD address VARCHAR(200), ALGORITHM=INSTANT;
 어댑티브 해시 인덱스의 도움을 많이 받을수록 테이블 삭제 또는 변경 작업(Online DDL 포함)은 더 치명적인 작업이 되는 것이다. 
 
 mysql> SHOW ENGINE INNODB STATUS\G;
-
+...
 -------------------------------------
 INSERT BUFFER AND ADAPTIVE HASH INDEX
 -------------------------------------
@@ -94,4 +94,20 @@ Hash table size 2267, node heap has 0 buffer(s)
 Hash table size 2267, node heap has 0 buffer(s)
 0.00 hash searches/s, 0.00 non-hash searches/s
 ---
+...
+
+
+SELECT EVENT_NAME, CURRENT_NUMBER_OF_BYTES_USED
+FROM performance_schema.memory_summary_global_by_event_name
+WHERE EVENT_NAME = 'memory/innodb/adaptive hash index';
+
++-----------------------------------+------------------------------+
+| EVENT_NAME                        | CURRENT_NUMBER_OF_BYTES_USED |
++-----------------------------------+------------------------------+
+| memory/innodb/adaptive hash index |                            0 |
++-----------------------------------+------------------------------+
+1 row in set (0.00 sec)
+
+
+
 
