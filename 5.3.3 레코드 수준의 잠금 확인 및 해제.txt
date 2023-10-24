@@ -1,0 +1,108 @@
+
+5.3.3 레코드 수준의 잠금 확인 및 해제
+InnoDB 스토리지 엔진을 사용하는 테이블 레코드 수준 잠금은 테이블 수준의 잠금보다는 조금 더 복잡하다. 
+테이블 잠금에서는 잠금의 대상이 테이블 자체이므로 쉽게 문제가 원인이 발견되고 해결될 수 있다. 
+하지만 레코드 수준의 잠금은 테이블의 레코드 각각에 잠금이 걸리므로 그 레코드가 자주 사용되지 않는다며 오랜 시간 동안 잠겨진 상태로 남아 있어도
+잘 발견되지 않는다.
+
+MySQL 서버에서는 레코드 잠금에 대한 메타 정보(딕셔너리 테이블)를 제공하지 않기 때문에 더더욱 어려운 부분이다. 5.1 부터는 레코드 잠금과 잠금
+대기에 대한 조회가 가능하므로 쿼리 하나만 실행해 보면 잠금과 잠금 대기를 바로 확인할 수 있다. 강제로 잠금을 해재하려면 KILL명령을 이용해 MySQL
+서버의 프로세스를 강제 종료하면 된다.
+
+커넥션1
+
+begin;
+update employees
+set birth_date = now() where
+emp_no = 100001;
+
+커넥션2
+update employees set hire_date=now() where emp_no=100001;
+
+커넥션3
+update employees
+set hire_date=now(), birth_date=now()
+where emp_no=100001;
+
+각 트랜잭션이 어떤 잠금을 기다리고 있는지, 기다라는 잠금을 어떤 트랜잭션이 가지고 있는지를 쉽게 메타 정보를 통해 조회할 수 있다.
+우선 5.1부터는 information_schema라는 DB에 INNODB_TRX라는 테이블과 INNODB_LOCKS, INNODB_LOCK_WAITS라는 테이블을 통해 확인이 가능했다.
+8.0 부터는 information_schema의 정보들은 조금씩 제거(Deprecated) 되고 있으며, 그 대신 performance_schema의 data_locks와 data_lock_waits 테이블로
+대체되고 있다. performance_schema의 테이블을 이용해 잠금과 잠금 대기 순서를 확인하는 방법을 살펴보자.
+
+mysql>show processlist;
+
+id, time, state, info
+17, 607, , null
+18, 22, updating, update employees set birth_date=now() where emp_no = 100001
+19, 21, updating, update employees set birth_date=now() where emp_no = 100001
+
+
+select * from performance_schema.data_lock_waits w
+    inner join information_schema.innodb_trx b
+        on b.trx_id = w.blocking_engine_transaction_id
+    inner join information_schema.innodb_trx r
+        on r.trx_id = w.requesting_engine_transaction_id;
+    
+5.7에서는 동작하지 않음
+
+waiting_trx_id, wating_thread, waiting_query, blocking_trx_id, blocking_thread, blocking_query
+11990, 19, update employees.., 11989, 18, update employees..
+11990, 19, update employees.., 11984, 17, null
+...
+
+쿼리의 실행 결과를 보면 현재 대기 중인 스레드는 19번 스레드 이다. 19번 스래드는 17번 스레드를 기 다리고 있다.
+이는 잠금 대기 큐의 내용을 그대로 보여주기 때문에 이렇게 표시되는 것이다. 
+
+mysql> select * from performance_Schema.data_locks\G
+5.7에서는 안됨
+
+-----------
+**************** 1. row *******************
+engine: innodb
+engine_lock_id: 4828335432:1157:140695376728800
+engine_transaction_id: 11984
+thread_id: 61
+event_id: 16028
+object_schema: employees
+object_name: employees
+partition_name: null
+subpartition_name: null
+index_name: null
+object_instance_begin: 140695376728800
+lock_type: table
+lock_mode: ix
+lock_Status: granted
+lock_data: null 
+**************** 2. row *******************
+....
+---------
+
+위 결과를 보면 employees 테이블에 대해 IDX 잠금(Intentional Exclusive)을 가지고 있으며, employees 테이블의 특정 레코드에 대해서 쓰기 잠금을 가지고
+있다는 것을 확인할 수 있다. 이때 REC_NOT_GAP 표시가 있으므로 레코드 잠금은 갭이 포함되지 않은 순수 레코드에 대해서만 잠금을 가지고 있음을 알 수 있다.
+
+만약 이 상황에서 17번 스레드가 잠금을 가진 상태에서 상당히 오랜 시간 멈춰 있다면 다음과 같이 17번 스레드를 강제 종료하면 나머지 update 명령들이 진행되면서
+잠금 경합이 끝날 것이다.
+
+mysql> KILL 17;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
