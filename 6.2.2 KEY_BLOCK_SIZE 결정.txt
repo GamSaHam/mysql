@@ -1,0 +1,85 @@
+테이블 압축에서 가장 중요한 부분은 압축된 결과가 어느 정도가 될지를 예측해서 KEY_BLOCK_SIZE를 결정하는 것이다.
+그래서 테이블 압축을 적용하기 전에 먼저 KEY_BLOCK_SIZE를 4KB or 8KB로 테이블을 생성해서 샘플 데이터를 저장해보고 적절한지 판단하는 것이 좋다.
+
+-------
+
+use employees;
+
+# employees 테이블과 동일한 구조로, 테이블 압축을 사용하는 예제 테이블을 생성
+create table employees_comp4k
+(
+    emp_no     int             not null,
+    birth_date date            not null,
+    first_name varchar(14)     not null,
+    last_name  varchar(16)     not null,
+    gender     enum ('M', 'F') not null,
+    hire_date  date            not null,
+    primary key (emp_no),
+    key ix_firstname (first_name),
+    key ix_hiredate (hire_date)
+) row_format = compressed
+  key_block_size = 4;
+
+# 테스트를 실행하기 전에 innodb_emp_per_index_enabled 시스템 변수를 ON으로 변경해야
+# 인덱스별로 압축 실행 횟수와 성공 횟수가 기록된다.
+set global innodb_cmp_per_index_enabled = ON;
+
+# employees 테이블의 데이터를 그대로 압축 테스트 테이블로 저장
+insert into employees_comp4k
+select *
+from employees;
+
+# 인덱스별로 압축 횟수와 성공 횟수, 압축 실패율을 조회
+select table_name,
+       index_name,
+       compress_ops,
+       compress_ops_ok,
+       (compress_ops - compress_ops_ok) / compress_ops * 100 as compression_failure_pct
+from information_schema.INNODB_CMP_PER_INDEX;
+
+-------
+
+위 예제의 마지막 부분을 보면 primary 키는 전체 18653번 압축을 실행했는데, 그 중에서 13478번 성공을 했다.
+즉 5175(18653 - 13478)번 압축했는데, 압축의 결과가 4KB를 초과해서 데이터 페이지를 스플릿해서 다시 압축을 실행했다는 의미다.
+여기서 PRIMARY 키는 압축 실패율이 27.67%이며 나머지 인덱스 2개도 압축 실패율이 상대적으로 높게 나온 것을 알 수 있다. 일반
+적으로 압축 실패율은 3~5% 미만으로 유지할 수 있게 KEY_BLOCK_SIZE를 선택하는 것이 좋다.
+
+그맇다면 이번에는 KEY_BLOCK_SIZE를 8KB로 설정하고 한 번 동일한 테스트를 실행해보자.
+
++------------------+--------------+--------------+-----------------+-------------------------+
+| table_name       | index_name   | compress_ops | compress_ops_ok | compression_failure_pct |
++------------------+--------------+--------------+-----------------+-------------------------+
+| employees_comp4k | PRIMARY      |        18635 |           13478 |                 27.6737 |
+| employees_comp4k | ix_firstname |         8305 |            7638 |                  8.0313 |
+| employees_comp4k | ix_hiredate  |         7763 |            6724 |                 13.3840 |
+| employees_comp8k | PRIMARY      |         8092 |            6593 |                 18.5245 |
+| employees_comp8k | ix_firstname |         1996 |            1996 |                  0.0000 |
+| employees_comp8k | ix_hiredate  |         1392 |            1382 |                  0.7184 |
++------------------+--------------+--------------+-----------------+-------------------------+
+
+KEY_BLOCK_SIZE를 8KB로 설정했음에도 불구하고 PRIMARY 키의 압축 실패율이 꽤 높게 나타난 것을 알 수 있다.
+
+-rwxrwxrwx 1 gsham0331 gsham0331  46137344 Oct 24 11:34 employees.ibd
+-rwxrwxrwx 1 gsham0331 gsham0331  20971520 Nov  1 10:30 employees_comp4k.ibd
+-rwxrwxrwx 1 gsham0331 gsham0331  22020096 Nov  1 11:06 employees_comp8k.ibd
+
+물론 압축률이 높다고 해서 실제 디스크의 데이터 파일 크기가 줄어들지 않는다는 뜻은 아니다.
+
+여기서 흥미로운 결과는 4KB 압축과 8KB 압축의 결과가 거의 차이 나지 않는다는 것이다.
+
+테이블 압축은 zlib를 이용해 압축을 실행하는데, 예상외로 압축 알고리즘은 많은 CPU 자원을 소모한다는 것을 기억해두자.
+
+6.2.3 압축된 페이지의 버퍼 풀 적재 및 사용
+InnoDB 스토리지 엔진은 압축된 테이블의 데이터 페이지를 버퍼 풀에 적재하면 압축된 상태와 압축이 해제된 상태 2개 버전을 관리한다.
+디스크에서 읽은 상태 그래도의 데이터 페이지 목록을 관리하는 LRU 리스트와 압축된 페이지들의 압축 해제 버전인 Unzip_LRU 리스트를 별도로 관리하게 된다.
+
+
+
+
+
+
+
+
+
+
+
