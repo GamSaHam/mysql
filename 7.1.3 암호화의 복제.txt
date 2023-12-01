@@ -1,0 +1,34 @@
+
+키리 파일 설정
+# early-plugin-load = keyring_file.so
+# keyring_file_data = /very/secure/directory/tde_master.key
+
+
+mysql > show plugins;
+
+테이블 생성시
+create table tab_encrypted (
+    id INT,
+    data VARCHAR(100),
+    PRIMARY KEY(id)
+)encryption  = 'Y';
+
+
+7.4 언두 로그 및 리두 로그 암호화
+MySQL 서버는 리두 로그나 언두 로그를 평문으로 저장하다가 암호화가 활성화되면 그때부터 생성되는 리두 로그나 언두 로그만 암호화해서 저장한다. 그래서 리두 로그와
+언두 로그는 암호화를 비활성
+
+리두 로그가 암호화됐는지는 다음과 같이 간단히 확인할 수 있다.
+show global variables like 'innodb_redo_log_encrypt';
+
+7.5 바이너리 로그 암호화
+테이블 암호화가 적용돼도 바이너리 로그와 릴레이 로그 파일 또한 리두 로그나 언두 로그 처럼 평문을 저장한다. 
+
+7.5.1 바이너리 로그 암호화 키 관리
+
+바이너리 로그 암호화 키 <-> 키링 플러그인(keyring_file, keyring_vault) <-> MySQL 플로그인 서비스(MySQL 서버) <-> 바이너리 로그 I/O 핸들러(MySQL 서버)
+<-> 바이너리 로그(디스크)
+
+그나마 바이너리 로그 파일의 내용을 볼 수 있는 방법은 MySQL 서버를 통해 가져오는 방벙이 유일하다. 
+
+
