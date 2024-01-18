@@ -116,12 +116,44 @@ select count(*) from t1;
 
 // count , 12619776
 
-
 mysql> select * from t1 order by tid asc limit 1269775, 1;
 1 row in set (4.15 sec)
 
 mysql> select * from t1 order by tid desc limit 1269775, 1;
 1 row in set (5.35 sec)
+
+역순 정렬 쿼리가 정순 정렬 쿼리보다 28.9% 더 시간이 걸리는 것을 확인할 수 있다. 
+
+- 페이지 잠금이 인덱스 정순 스캔(Forward index scan)에 적합한 구조
+- 페이지 내에서 인덱스 레코드가 단방향으로만 연결된 구조
+
+InnoDB 데이터 & 인덱스 페이지
+Infimum -> 키값,데이터 -> .... -> Supermum
+
+그림 8.16에서는 InnoDB 페이지 내부에서 레코드들이 정렬 순서대로 저장돼 있는 것처럼 표시돼 있지만 실제로 InnDB 페이지는
+힙(Heap)처럼 사용되기 때문에 물리적으로 저장이 순서대로 배치 되지는 않는다. 
+
+내림차순과 오름차순 인덱스의 내부적인 차이로 인한 성능을 살펴봤다. 이제 서비스 요건에 맞게 어떤 정렬 순서의 인덱스를
+선택해야 할지 살펴보자. 일반적으로 인덱스를 ORDER BY ... DESC하는 쿼리가 소량의 레코드에 드물게 실행되는 경우라면 
+내림차순 인덱스를 굳이 고려할 필요는 없어 보인다.
+
+mysql> select * from tab where userid=? order by score desc limit 10;
+
+이 쿼리의 경우 다음 두 가지 인덱스 모두 적절한 선택이 될 수 있다.
+
+오름차순 인덱스: INDEX (userid ASC, score ASC)
+내림차순 인덱스: INDEX (userid DESC, score DESC)
+
+하지만 위 쿼리가 많은 레코드를 조회하면서 빈번하게 실행된다면 오름차순 인덱스보다는 내림차순 인덱스가 더 효율적이라고 
+볼 수 있다.
+
+또한 많은 쿼리가 인덱스의 앞쪽만 또는 뒤쪽만 집중적으로 읽어서 인덱스의 특정 페이지 잠금이 병목이 될 것으로 예상된다면
+쿼리에서 자주 사용되는 정렬 순서대로 인덱스를 생성하는 것이 잠금 병목 현상을 완화하는 데 도움이 될 것이다.
+
+
+
+
+
 
 
 
