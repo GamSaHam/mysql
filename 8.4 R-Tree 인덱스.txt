@@ -1,0 +1,10 @@
+
+8.4 R-Tree 인덱스
+아마도 MySQL의 공간 인덱스(Spatial Index)라는 말을 
+
+
+
+
+
+
+
